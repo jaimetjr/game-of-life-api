@@ -1,4 +1,5 @@
 using game_of_life_api.Data;
+using game_of_life_api.Services;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -19,6 +20,7 @@ builder.Services.AddDbContext<DataContext>(options => options.UseSqlite(builder.
 
 
 builder.Services.AddScoped<IBoardRepository, BoardRepository>();
+builder.Services.AddScoped<IGameOfLifeService, GameOfLifeService>();
 
 var app = builder.Build();
 
