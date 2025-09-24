@@ -1,4 +1,6 @@
-﻿using game_of_life_api.Services;
+﻿using FluentValidation;
+using game_of_life_api.DTOs;
+using game_of_life_api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,38 +11,53 @@ namespace game_of_life_api.Controllers
     public class EngineController : ControllerBase
     {
         private readonly IGameOfLifeService _engine;
+        private readonly IValidator<UploadBoardRequest> _uploadValidator;
+        private readonly IValidator<AdvanceRequest> _advanceValidator;
+        private readonly IValidator<FinalStateRequest> _finalValidator;
 
-        public EngineController(IGameOfLifeService engine)
+        public EngineController(
+            IGameOfLifeService engine,
+            IValidator<UploadBoardRequest> uploadValidator,
+            IValidator<AdvanceRequest> advanceValidator,
+            IValidator<FinalStateRequest> finalValidator)
         {
             _engine = engine;
+            _uploadValidator = uploadValidator;
+            _advanceValidator = advanceValidator;
+            _finalValidator = finalValidator;
         }
 
         [HttpPost("next")]
-        public IActionResult Next([FromBody] bool[][] cells)
+        public async Task<IActionResult> Next([FromBody] UploadBoardRequest request)
         {
-            var result = _engine.ComputeNext(cells);
+            var validation = await _uploadValidator.ValidateAsync(request);
+            if (!validation.IsValid)
+                return BadRequest(new { Errors = validation.Errors });
+
+            var result = _engine.ComputeNext(request.Cells);
             return Ok(result);
         }
 
         [HttpPost("advance")]
-        public IActionResult Advance([FromBody] bool[][] cells, [FromQuery] int steps = 1)
+        public async Task<IActionResult> Advance([FromBody] AdvanceRequest request)
         {
-            if (steps < 0) return BadRequest("Steps must be >= 0");
-            var result = _engine.Advance(cells, steps);
+            var validation = await _advanceValidator.ValidateAsync(request);
+            if (!validation.IsValid)
+                return BadRequest(new { Errors = validation.Errors });
+
+            var result = _engine.Advance(request.Cells, request.Steps);
             return Ok(result);
         }
 
         [HttpPost("final")]
-        public IActionResult Final([FromBody] bool[][] cells, [FromQuery] int maxAttempts = 1000)
+        public async Task<IActionResult> Final([FromBody] FinalStateRequest request)
         {
-            if (maxAttempts <= 0) return BadRequest("maxAttempts must be > 0");
-            var result = _engine.FindFinalState(cells, maxAttempts);
-            return Ok(new
-            {
-                result.Reason,
-                result.StepsTaken,
-                result.State
-            });
+            var validation = await _finalValidator.ValidateAsync(request);
+            if (!validation.IsValid)
+                return BadRequest(new { Errors = validation.Errors });
+
+            var result = _engine.FindFinalState(request.Cells, request.MaxAttempts);
+            return Ok(new { result.Reason, result.StepsTaken, result.State });
         }
     }
 }
