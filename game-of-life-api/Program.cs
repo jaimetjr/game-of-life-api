@@ -1,6 +1,7 @@
 using FluentValidation;
 using game_of_life_api.Data;
 using game_of_life_api.DTOs;
+using game_of_life_api.Middleware;
 using game_of_life_api.Services;
 using game_of_life_api.Validators;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +34,17 @@ builder.Services.AddScoped<IValidator<UploadBoardRequest>, UploadBoardRequestVal
 
 var app = builder.Build();
 
+app.UseMiddleware<ErrorHandlingMiddleware>();
+app.UseSerilogRequestLogging(opts =>
+{
+    opts.EnrichDiagnosticContext = (diagCtx, httpCtx) =>
+    {
+        if (httpCtx.Response.Headers.TryGetValue("X-Correlation-Id", out var correlationId))
+        {
+            diagCtx.Set("CorrelationId", correlationId.ToString());
+        }
+    };
+});
 
 using (var scope = app.Services.CreateScope())
 {
