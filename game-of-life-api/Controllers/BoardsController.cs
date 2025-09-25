@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using game_of_life_api.Data;
 using game_of_life_api.DTOs;
+using game_of_life_api.Helpers.Enum;
 using game_of_life_api.Models;
 using game_of_life_api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -85,6 +86,29 @@ namespace game_of_life_api.Controllers
             var advanced = _engine.Advance(cells, steps);
 
             return Ok(new { id = board.Id, rows = board.Rows, cols = board.Cols, state = advanced });
+        }
+
+        [HttpPost("{id:guid}/final")]
+        public async Task<IActionResult> Final(Guid id, [FromQuery] int maxAttempts = 1000, CancellationToken ct = default)
+        {
+            if (maxAttempts <= 0 || maxAttempts > 50_000)
+                return BadRequest(new { message = $"maxAttempts must be > 0 and <= 50000. Provided: {maxAttempts}" });
+
+            var board = await _boardRepository.GetByIdAsync(id, ct);
+            if (board is null)
+                return NotFound(new { message = $"Board {id} not found" });
+
+            var cells = JsonSerializer.Deserialize<bool[][]>(board.CellsJson) ?? Array.Empty<bool[]>();
+            var result = _engine.FindFinalState(cells, maxAttempts);
+
+            return result.Reason switch
+            {
+                TerminationReason.Stable or TerminationReason.Extinct =>
+                    Ok(new { id = board.Id, rows = board.Rows, cols = board.Cols, state = result.State, reason = result.Reason }),
+                TerminationReason.Loop or TerminationReason.Unresolved =>
+                    UnprocessableEntity(new { id = board.Id, reason = result.Reason, stepsTaken = result.StepsTaken }),
+                _ => StatusCode(500, new { message = "Unexpected termination reason." })
+            };
         }
     }
 }
