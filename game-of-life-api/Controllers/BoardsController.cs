@@ -2,8 +2,10 @@
 using game_of_life_api.Data;
 using game_of_life_api.DTOs;
 using game_of_life_api.Models;
+using game_of_life_api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace game_of_life_api.Controllers
 {
@@ -13,11 +15,13 @@ namespace game_of_life_api.Controllers
     {
         private readonly IBoardRepository _boardRepository;
         private readonly IValidator<UploadBoardRequest> _validator;
+        private readonly IGameOfLifeService _engine;
 
-        public BoardsController(IBoardRepository boardRepository, IValidator<UploadBoardRequest> validator)
+        public BoardsController(IBoardRepository boardRepository, IGameOfLifeService engine, IValidator<UploadBoardRequest> validator)
         {
             _boardRepository = boardRepository;
             _validator = validator;
+            _engine = engine;
         }
 
         [HttpPost]
@@ -47,6 +51,27 @@ namespace game_of_life_api.Controllers
             var id = await _boardRepository.AddAsync(entity, ct);
 
             return Ok(new { id });
+        }
+
+        [HttpPost("{id:guid}/next")]
+        public async Task<IActionResult> Next(Guid id, CancellationToken ct)
+        {
+            var board = await _boardRepository.GetByIdAsync(id, ct);
+            if (board is null)
+            {
+                return NotFound(new { message = $"Board {id} not found" });
+            }
+
+            var cells = JsonSerializer.Deserialize<bool[][]>(board.CellsJson) ?? Array.Empty<bool[]>();
+            var next = _engine.ComputeNext(cells);
+
+            return Ok(new
+            {
+                id = board.Id,
+                rows = board.Rows,
+                cols = board.Cols,
+                state = next
+            });
         }
     }
 }
