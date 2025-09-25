@@ -3,7 +3,6 @@ using game_of_life_api.Data;
 using game_of_life_api.DTOs;
 using game_of_life_api.Models;
 using game_of_life_api.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
@@ -44,7 +43,7 @@ namespace game_of_life_api.Controllers
                 Name = request.Name,
                 Rows = request.Rows,
                 Cols = request.Cols,
-                CellsJson = System.Text.Json.JsonSerializer.Serialize(request.Cells),
+                CellsJson = JsonSerializer.Serialize(request.Cells),
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -58,9 +57,7 @@ namespace game_of_life_api.Controllers
         {
             var board = await _boardRepository.GetByIdAsync(id, ct);
             if (board is null)
-            {
                 return NotFound(new { message = $"Board {id} not found" });
-            }
 
             var cells = JsonSerializer.Deserialize<bool[][]>(board.CellsJson) ?? Array.Empty<bool[]>();
             var next = _engine.ComputeNext(cells);
@@ -72,6 +69,22 @@ namespace game_of_life_api.Controllers
                 cols = board.Cols,
                 state = next
             });
+        }
+
+        [HttpPost("{id:guid}/advance")]
+        public async Task<IActionResult> Advance(Guid id, [FromQuery] int steps, CancellationToken ct)
+        {
+            if (steps <= 0 || steps > 10_000)
+                return BadRequest(new { message = $"Steps must be > 0 and <= 10000. Provided: {steps}" });
+
+            var board = await _boardRepository.GetByIdAsync(id, ct);
+            if (board is null)
+                return NotFound(new { message = $"Board {id} not found" });
+
+            var cells = JsonSerializer.Deserialize<bool[][]>(board.CellsJson) ?? Array.Empty<bool[]>();
+            var advanced = _engine.Advance(cells, steps);
+
+            return Ok(new { id = board.Id, rows = board.Rows, cols = board.Cols, state = advanced });
         }
     }
 }
