@@ -23,4 +23,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\game-of-life-api\game-of-life-api.csproj" />
+  </ItemGroup>
+
 </Project>
